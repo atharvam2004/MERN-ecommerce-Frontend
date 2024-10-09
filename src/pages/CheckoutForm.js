@@ -131,7 +131,7 @@ const RenderRazorpay = ({
   const currentOrder = useSelector(selectCurrentOrder);
 
   // To load razorpay checkout modal script.
-  const displayRazorpay = async (options) => {
+  const displayRazorpay = async () => {
     const res = await loadScript(
       'https://checkout.razorpay.com/v1/checkout.js',
     );
@@ -140,6 +140,90 @@ const RenderRazorpay = ({
       console.log('Razorpay SDK failed to load. Are you online?');
       return;
     }
+    const response = await fetch("/create-payment-intent", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        amount: currentOrder.totalAmount, // convert amount into lowest unit (Dollar -> Cents)
+        orderId: currentOrder.id,
+        keyId: "rzp_test_h27cx8k0njEGHh",
+        KeySecret: "KY6HyMf6wbE5dNKXUxEqgjOK",
+      }),
+    }).then((t) =>
+			t.json()
+		)
+
+    console.log("sada",response)
+      const options = {
+        key: keyId, // key id from props
+        amount:(response.amount*100).toString(), // Amount in lowest denomination from props
+        currency:"INR", // Currency from props.
+        name: 'Dukaan', // Title for your organization to display in checkout modal
+        // image, // custom logo  url
+        order_id: response.orderId, // order id from props
+        // This handler menthod is always executed in case of succeeded payment
+        handler: (response) => {
+          console.log('succeeded');
+          console.log(response);
+          paymentId.current = response.razorpay_payment_id;
+    
+          // Most important step to capture and authorize the payment. This can be done of Backend server.
+          const succeeded = crypto.HmacSHA256(`${orderId}|${response.razorpay_payment_id}`, keySecret).toString() === response.razorpay_signature;
+    
+          // If successfully authorized. Then we can consider the payment as successful.
+          if (succeeded) {
+            handlePayment('succeeded', {
+              orderId,
+              paymentId,
+              signature: response.razorpay_signature,
+            });
+          } else {
+            handlePayment('failed', {
+              orderId,
+              paymentId: response.razorpay_payment_id,
+            });
+          }
+        },
+        callback_url : "https://dukaan-mern.onrender.com/payment",
+        modal: {
+          confirm_close: true, // this is set to true, if we want confirmation when clicked on cross button.
+          // This function is executed when checkout modal is closed
+          // There can be 3 reasons when this modal is closed.
+          ondismiss: async (reason) => {
+            const {
+              reason: paymentReason, field, step, code,
+            } = reason && reason.error ? reason.error : {};
+            // Reason 1 - when payment is cancelled. It can happend when we click cross icon or cancel any payment explicitly. 
+            if (reason === undefined) {
+              console.log('cancelled');
+              handlePayment('Cancelled');
+            } 
+            // Reason 2 - When modal is auto closed because of time out
+            else if (reason === 'timeout') {
+              console.log('timedout');
+              handlePayment('timedout');
+            } 
+            // Reason 3 - When payment gets failed.
+            else {
+              console.log('failed');
+              handlePayment('failed', {
+                paymentReason, field, step, code,
+              });
+            }
+          },
+        },
+        // This property allows to enble/disable retries.
+        // This is enabled true by default. 
+        retry: {
+          enabled: false,
+        },
+        timeout: 900, // Time limit in Seconds
+        theme: {
+          color: '', // Custom color for your checkout modal.
+        },
+      };
     // All information is loaded in options which we will discuss later.
     const rzp1 = new window.Razorpay(options);
 
@@ -180,79 +264,11 @@ const RenderRazorpay = ({
   };
 
 
-
   // we will be filling this object in next step.
-  const options = {
-    key: keyId, // key id from props
-    amount, // Amount in lowest denomination from props
-    currency, // Currency from props.
-    name: 'Dukaan', // Title for your organization to display in checkout modal
-    // image, // custom logo  url
-    order_id: orderId, // order id from props
-    // This handler menthod is always executed in case of succeeded payment
-    handler: (response) => {
-      console.log('succeeded');
-      console.log(response);
-      paymentId.current = response.razorpay_payment_id;
 
-      // Most important step to capture and authorize the payment. This can be done of Backend server.
-      const succeeded = crypto.HmacSHA256(`${orderId}|${response.razorpay_payment_id}`, keySecret).toString() === response.razorpay_signature;
-
-      // If successfully authorized. Then we can consider the payment as successful.
-      if (succeeded) {
-        handlePayment('succeeded', {
-          orderId,
-          paymentId,
-          signature: response.razorpay_signature,
-        });
-      } else {
-        handlePayment('failed', {
-          orderId,
-          paymentId: response.razorpay_payment_id,
-        });
-      }
-    },
-    callback_url : `http://localhost:3000/order-success/${currentOrder.id}`,
-    modal: {
-      confirm_close: true, // this is set to true, if we want confirmation when clicked on cross button.
-      // This function is executed when checkout modal is closed
-      // There can be 3 reasons when this modal is closed.
-      ondismiss: async (reason) => {
-        const {
-          reason: paymentReason, field, step, code,
-        } = reason && reason.error ? reason.error : {};
-        // Reason 1 - when payment is cancelled. It can happend when we click cross icon or cancel any payment explicitly. 
-        if (reason === undefined) {
-          console.log('cancelled');
-          handlePayment('Cancelled');
-        } 
-        // Reason 2 - When modal is auto closed because of time out
-        else if (reason === 'timeout') {
-          console.log('timedout');
-          handlePayment('timedout');
-        } 
-        // Reason 3 - When payment gets failed.
-        else {
-          console.log('failed');
-          handlePayment('failed', {
-            paymentReason, field, step, code,
-          });
-        }
-      },
-    },
-    // This property allows to enble/disable retries.
-    // This is enabled true by default. 
-    retry: {
-      enabled: false,
-    },
-    timeout: 900, // Time limit in Seconds
-    theme: {
-      color: '', // Custom color for your checkout modal.
-    },
-  };
   useEffect(() => {
     console.log('in razorpay');
-    displayRazorpay(options);
+    displayRazorpay();
   }, []);
 
   return null;

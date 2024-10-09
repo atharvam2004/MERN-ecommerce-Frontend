@@ -15,38 +15,10 @@ export default function StripeCheckout() {
   const currentOrder = useSelector(selectCurrentOrder);
   const [displayRazorpay, setDisplayRazorpay] = useState(false);
   const [orderDetails, setOrderDetails] = useState({
-    orderId: null,
-    currency: null,
-    amount: null,
+    orderId: currentOrder.id,
+    currency:  "INR",
+    amount: currentOrder.totalAmount,
   });
-  useEffect(() => {
-    fetch("/create-payment-intent", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        amount: currentOrder.totalAmount, // convert amount into lowest unit (Dollar -> Cents)
-        orderId: currentOrder.id,
-        keyId: "rzp_test_h27cx8k0njEGHh",
-        KeySecret: "KY6HyMf6wbE5dNKXUxEqgjOK",
-      }),
-    })
-      .then((response) => response.json()) // Convert the response to JSON
-      .then((data) => {
-        if (data && data.order_id) {
-          setOrderDetails({
-            orderId: data.order_id,
-            currency: data.currency,
-            amount: data.amount,
-          });
-          setDisplayRazorpay(true);
-        }
-      })
-      .catch((error) => {
-        console.error("Error creating order:", error);
-      });
-  }, []);
 
   // const appearance = {
   //   theme: 'stripe',
@@ -58,7 +30,6 @@ export default function StripeCheckout() {
 
   return (
     <div className="Stripe">
-      {displayRazorpay && (
         <>
         <h1>aaaaaaaa</h1>
         <RenderRazorpay
@@ -66,11 +37,10 @@ export default function StripeCheckout() {
           amount={orderDetails.amount}
           currency={orderDetails.currency}
           orderId={orderDetails.orderId}
-          keyId={process.env.REACT_APP_RAZORPAY_KEY_ID}
-          keySecret={process.env.REACT_APP_RAZORPAY_KEY_SECRET}
+          keyId="rzp_test_h27cx8k0njEGHh"
+          keySecret="KY6HyMf6wbE5dNKXUxEqgjOK"
         />
         </>
-      )}
     </div>
   );
 }
